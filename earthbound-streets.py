@@ -15,7 +15,8 @@ COLORS = {'RED':(255,0,0),
          'BLUE':(0,0,255),
          'GREEN':(0,255,0),
          'BLACK':(0,0,0),
-         'WHITE':(255,255,255)}
+         'WHITE':(255,255,255),
+         'ALTWHITE':(255,255,250)}
  
 
 class Player(pygame.sprite.Sprite):    
@@ -130,6 +131,7 @@ class Player(pygame.sprite.Sprite):
             if event.key == pygame.K_DOWN:
                 self.update('stand_down')
 
+
 class Vehicle(pygame.sprite.Sprite):
     screen = None
     pos = None
@@ -183,7 +185,6 @@ class App(object):
             self.screen.blit(self.background, (0,0))
             self.screen.blit(self.player.image, self.player.rect)
             self.vehicle_list.update()
-            self.bumping_speed = pygame.time.get_ticks()
 
             if self.player.alive == False:
                 self.game_end.event_handler(event)
@@ -220,7 +221,6 @@ class App(object):
             self.already_done = True
 
 
-
     def make_cars(self):
         for y in range(300, 550, 50):
             vehicle = Vehicle((randint(-300,-75),y), self.vehicle_list)
@@ -253,17 +253,16 @@ class Game_End():
 
         self.screen.blit(text,(350,300))
         self.screen.blit(endtext,(350,400))
- 
 
-    def music_handler(self,current_sound):
-        pygame.mixer.music.stop()
-        pygame.mixer.music.load(current_sound)
-        pygame.mixer.music.play(-1)
 
  
 def main():
     pygame.init()
     pygame.display.set_mode(SCREEN_SIZE)
+    icon = pygame.image.load('images/gameicon.png')
+    icon.set_colorkey(COLORS['BLACK'])
+    pygame.display.set_icon(icon)
+    pygame.display.set_caption('EarthBound Street')
     pygame.mixer.init()
     App().master_loop()
     pygame.quit()
