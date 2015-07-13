@@ -1,6 +1,5 @@
 import os
 import sys
-import random
 import pygame
 from random import randint
 from random import choice
