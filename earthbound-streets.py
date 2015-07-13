@@ -1,166 +1,274 @@
+import os
+import sys
+import random
 import pygame
 from random import randint
 from random import choice
-import time
-pygame.init()
  
-COLORS = {'WHITE' : (255,255,255),
-'BLACK' : (0,0,0),
-'GREEN':(0,255,0),
-'GRAY' :(177,179,188)}
  
-SCREEN_WIDTH , SCREEN_HEIGHT = SCREEN_SIZE = (800, 600)
+SCREEN_WIDTH, SCREEN_HEIGHT = SCREEN_SIZE = (800,600)
 
-NESS_SPRITES = ['images/nessthekid.png',
-'images/nessthekidshocked.png','images/nessthekidwalking .png']
+CAR_TYPES = ['images/pytruck.png','images/escargo_truck.png',
+            'images/jerk_truck.png','images/runaway_car.png','images/taxi_truck.png']
 
-CAR_TYPES = ['images/escargo_truck.png','images/jerk_truck.png',
-            'images/taxi_truck.png','images/runaway_car.png','images/pytruck.png']
+COLORS = {'RED':(255,0,0),
+         'BLUE':(0,0,255),
+         'GREEN':(0,255,0),
+         'BLACK':(0,0,0),
+         'WHITE':(255,255,255)}
+ 
 
-DIRECT_DICT = {pygame.K_a : (-1, 0), pygame.K_d : ( 1, 0),
-               pygame.K_w : ( 0,-1), pygame.K_s : ( 0, 1)}
-
-
-
-class Player(pygame.sprite.Sprite):
-    injured = False
-    change_x = 0
-    change_y = 0
-    speed = 5
-    cars = None
-    sprite = None
-    def __init__(self):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.Surface([35,50])
-        self.rect = self.image.get_rect()
-        self.image.fill(COLORS['BLACK'])
-        self.image.set_colorkey(COLORS['BLACK'])
-        self.sprite = pygame.image.load(NESS_SPRITES[0])
-        self.sprite.set_colorkey(COLORS['WHITE'])
-    
-    def update(self,keys):
-        for key in DIRECT_DICT:
-            if keys[key]:
-                self.rect.x += self.speed*DIRECT_DICT[key][0]
-                self.rect.y += self.speed*DIRECT_DICT[key][1]
+class Player(pygame.sprite.Sprite):    
+    def __init__(self, pos):
+        self.sheet = pygame.image.load('images/ness_sprites.png')
+        self.sheet.set_clip(pygame.Rect(0, 0, 52, 76))
+        self.image = self.sheet.subsurface(self.sheet.get_clip())
+        self.rect = self.image.get_rect(topleft=pos)
+        self.alive = True
+        self.frame = 0
+        self.left_states = { 0: (0, 76, 52, 76), 1: (52, 76, 52, 76), 2: (156, 76, 52, 76) }
+        self.right_states = { 0: (0, 152, 52, 76), 1: (52, 152, 52, 76), 2: (156, 152, 52, 76) }
+        self.up_states = { 0: (0, 228, 52, 76), 1: (52, 228, 52, 76), 2: (156, 228, 52, 76) }
+        self.down_states = { 0: (0, 0, 52, 76), 1: (52, 0, 52, 76), 2: (156, 0, 52, 76) }
+        self.injured = False
+        self.cooldown = 1000
+        self.speed = 10
+        self.bump_speed = 10
+ 
+    def get_frame(self, frame_set):
+        self.frame += 1
+        if self.frame > (len(frame_set) - 1):
+            self.frame = 0
+        return frame_set[self.frame]
+ 
+    def clip(self, clipped_rect):
+        if type(clipped_rect) is dict:
+            self.sheet.set_clip(pygame.Rect(self.get_frame(clipped_rect)))
+        else:
+            self.sheet.set_clip(pygame.Rect(clipped_rect))
+        return clipped_rect
+       
+    def update(self, direction):
+        if direction == 'left':
+            self.clip(self.left_states)
+            self.rect.x -= 10
+        if direction == 'right':
+            self.clip(self.right_states)
+            self.rect.x += self.speed
+        if direction == 'up':
+            self.clip(self.up_states)
+            self.rect.y -= self.speed
+        if direction == 'down':
+            self.clip(self.down_states)
+            self.rect.y += self.speed
+ 
+        if direction == 'stand_left':
+            self.clip(self.left_states[0])
+        if direction == 'stand_right':
+            self.clip(self.right_states[0])
+        if direction == 'stand_up':
+            self.clip(self.up_states[0])
+        if direction == 'stand_down':
+            self.clip(self.down_states[0])
+ 
+        self.image = self.sheet.subsurface(self.sheet.get_clip())
         self.check_status()
 
-    def check_status(self):
-        car_hit_list = pygame.sprite.spritecollide(self,self.cars,False)
- 
-        for car in car_hit_list:
+    def check_collision(self, cars):
+        if pygame.sprite.spritecollideany(self, cars):
             self.injured = True
-            self.sprite = pygame.image.load(NESS_SPRITES[1])
-            self.sprite.set_colorkey(COLORS['WHITE'])
-            self.last = pygame.time.get_ticks()
-            self.rect.x += 20
-            self.check_collision()
+            self.image = pygame.image.load("images/nessthekidshocked.png")
+            self.rect.x += self.bump_speed
+            self.last_updated = pygame.time.get_ticks()
+ 
+    def check_status(self):
+        if self.injured:
+            now = pygame.time.get_ticks()
+            if now-self.last_updated >= self.cooldown:
+                self.image = self.sheet.subsurface(self.sheet.get_clip())
+                self.injured = False
+                self.last_updated = now
+
         self.check_pos()
 
-    def check_collision(self):
-        if self.injured == True:
-            cooldown = 2500
-            now = pygame.time.get_ticks()
-            if now-self.last >= cooldown:
-                self.sprite = pygame.image.load(NESS_SPRITES[0])
-                self.sprite.set_colorkey(COLORS['WHITE'])
-                self.injured = False
-                last = now
     def check_pos(self):
         if self.rect.x < 0:
-            pygame.quit()
-            quit()
+            self.alive = False
 
         if self.rect.x > SCREEN_WIDTH - 32:
-            pygame.quit()
-            quit()
-        if self.rect.y < 263:
-            pygame.quit()
-            quit()
+            self.alive = False
+        
+        if self.rect.y < 240:
+            self.alive = False
  
-        if self.rect.y > 460:
-            pygame.quit()
-            quit()
+        if self.rect.y > 435:
+            self.alive = False
 
-    def draw(self, surface):
-        surface.blit(self.sprite,self.rect)
-        self.sprite.set_colorkey(COLORS['WHITE'])
+    def handle_event(self, event):
+        if event.type == pygame.QUIT:
+            game_over = True
  
+        if event.type == pygame.KEYDOWN:
+           
+            if event.key == pygame.K_LEFT:
+                self.update('left')
+            if event.key == pygame.K_RIGHT:
+                self.update('right')
+            if event.key == pygame.K_UP:
+                self.update('up')
+            if event.key == pygame.K_DOWN:
+                self.update('down')
+ 
+        if event.type == pygame.KEYUP:  
+ 
+            if event.key == pygame.K_LEFT:
+                self.update('stand_left')            
+            if event.key == pygame.K_RIGHT:
+                self.update('stand_right')
+            if event.key == pygame.K_UP:
+                self.update('stand_up')
+            if event.key == pygame.K_DOWN:
+                self.update('stand_down')
+
 class Vehicle(pygame.sprite.Sprite):
-    length = 75
-    width = 50
-    def __init__(self, *groups):
+    screen = None
+    pos = None
+    def __init__(self, pos, *groups):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.Surface([50,10])
-        self.image.fill(COLORS['WHITE'])
-        self.sprite = pygame.image.load(choice(CAR_TYPES))
-        self.rect = self.image.get_rect()
+        self.sprite = pygame.image.load(choice(CAR_TYPES)).convert()
+        self.image = pygame.Surface(self.sprite.get_rect().size)
+        self.image.fill((255,255,255))
+        self.sprite.set_colorkey(COLORS['WHITE'])
+        self.rect = self.image.get_rect(bottomleft=pos)
+        self.pos = pos
         self.speed = randint(3, 11)
     
     def update(self):
         self.rect.x += self.speed
+        self.draw(self.screen)
         self.check_reset()
     
     def check_reset(self):
         if self.rect.x > SCREEN_WIDTH:
             self.sprite = pygame.image.load(choice(CAR_TYPES))
-            self.rect = self.image.get_rect()
+            self.sprite.set_colorkey(COLORS['WHITE'])
+            self.rect = self.image.get_rect(bottomleft=self.pos)
             self.speed = randint(3, 11)
 
-    def draw(self, screen):
+    def draw(self, surface):
         surface.blit(self.sprite,self.rect)
-
-class App():
-    def __init__(self):
-        self.done = False
-        self.player = Player()
-        self.player.rect.y = 430
-        self.player.rect.x = 380
-        self.cars = self.make_cars()
-        self.player.cars = self.cars
  
+class App(object):
+    def __init__(self):
         self.screen = pygame.display.get_surface()
         self.clock = pygame.time.Clock()
-        self.fps = 60
-        self.onnet = pygame.image.load('images/backgrouund.jpg').convert()
-
-    def update(self):
-        keys = pygame.key.get_pressed() 
-        self.player.update(keys)
-        self.cars.update()
-
-    def render(self):
-        self.screen.blit(self.onnet,(0,0))
-        self.player.draw(self.screen)
-        self.cars.draw(self.screen)
-        pygame.display.update()
-
-    def event_loop(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
-                done = True
-
+        self.done = False
+        self.player = Player((430,380))
+        self.background = pygame.image.load('images/backgrouund.jpg')
+        self.vehicle_list = pygame.sprite.OrderedUpdates()
+        self.current_sound = 'soundtrack/Onnet.wav'
+        self.force_stop = False
+        self.game_end = Game_End(self.screen)
+        self.already_done = False
+        self.fps = 24
+ 
     def main_loop(self):
         while not self.done:
-            self.event_loop()
-            self.update()
-            self.render()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.done = True
+        
+            self.player.handle_event(event)
+            self.player.check_collision(self.vehicle_list)
+            self.screen.blit(self.background, (0,0))
+            self.screen.blit(self.player.image, self.player.rect)
+            self.vehicle_list.update()
+            self.bumping_speed = pygame.time.get_ticks()
+
+            if self.player.alive == False:
+                self.game_end.event_handler(event)
+                self.force_stop = True
+                self.current_sound = 'soundtrack/StandUpStrong.wav'
+                self.draw_text()
+
+            
+            self.handle_music(self.current_sound)
+
+
+            pygame.display.update()
             self.clock.tick(self.fps)
 
  
+    def master_loop(self):
+            self.make_cars()
+            self.main_loop()
+
+    def draw_text(self):
+        if self.player.alive == False:
+            self.game_end.draw_text()
+
+
+    def handle_music(self,current_sound):
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.load(current_sound)
+            pygame.mixer.music.play(-1)
+
+        if self.player.alive == False and self.already_done == False:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load(current_sound)
+            pygame.mixer.music.play(-1)
+            self.already_done = True
+
+
+
     def make_cars(self):
-        self.cars = pygame.sprite.OrderedUpdates()
         for y in range(300, 550, 50):
-            Vehicle((randint(-300,-75),y), self.cars)
-        return self.cars
+            vehicle = Vehicle((randint(-300,-75),y), self.vehicle_list)
+            vehicle.screen = self.screen
+            self.vehicle_list.add(vehicle)
 
+class Game_End():
+    def __init__(self,screen):
+        self.screen = screen 
+        self.death_background = pygame.image.load('images/EB_Game_Over.png').convert()
+
+    def event_handler(self,event):
+        self.draw_background()
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                pygame.quit()
+                quit()
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+    def draw_background(self):
+        self.screen.blit(self.death_background,(0,0))
+
+    def draw_text(self):
+        gamefont = pygame.font.SysFont('arial', 35)
+        text = gamefont.render('You Died!', True, (255, 255, 255))
+        stattext = pygame.font.SysFont('arial',30)
+        endtext = gamefont.render('Press any button to quit.', True, (255, 255, 255))
+
+        self.screen.blit(text,(350,300))
+        self.screen.blit(endtext,(350,400))
+ 
+
+    def music_handler(self,current_sound):
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(current_sound)
+        pygame.mixer.music.play(-1)
+
+ 
 def main():
+    pygame.init()
     pygame.display.set_mode(SCREEN_SIZE)
-    App().main_loop()
+    pygame.mixer.init()
+    App().master_loop()
     pygame.quit()
-    quit()
-
-if __name__ == '__main__':
+    sys.exit()
+ 
+ 
+if __name__ == "__main__":
     main()
